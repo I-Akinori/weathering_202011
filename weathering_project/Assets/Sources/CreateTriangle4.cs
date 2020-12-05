@@ -343,7 +343,7 @@ public class CreateTriangle4 : MonoBehaviour
                     * (0.5f - 0.5f * Vector3.Dot(_gravity, _vertices[i].Nor)) * (1 - _vertices[i].HE.Curvature / (2 * Mathf.PI)) * 5.0f;
                 sw2.Stop();  // Dust 時間計測 end
 
-                
+
                 if (_vertices[i].Status > 3) continue;                                                 // 子頂点は除く
 
                 sw3.Start(); // Separate 時間計測 start
@@ -354,11 +354,12 @@ public class CreateTriangle4 : MonoBehaviour
 
                     if (Vi.Bond < Vi.LiftingForce)                                                  // 分離処理
                     {
+                        Vi.Pos += Vi.Nor * 0.1f;                                                    // 頂点移動処理 2020/12/05
                         //Debug.Log("Separated!");
                         Vi.PeelScale++;
                         Vi.Status = 1;
 
-                        for (int j = 0; j < _halfedges.Count; j++)
+                        for (int j = 0; j < _halfedges.Count; j++)                                  // 剥離規模パラメタの更新
                         {
                             HalfEdge HEj = _halfedges[j];
                             if (HEj.Vert == Vi && HEj.Next.Vert.PeelScale < Vi.PeelScale) HEj.Next.Vert.PeelScale = Vi.PeelScale;
@@ -366,7 +367,8 @@ public class CreateTriangle4 : MonoBehaviour
                         }
                     }
                 }
-                else {
+                else
+                {
                 }
 
                 sw3.Stop(); // separate 時間計測 end
@@ -495,7 +497,7 @@ public class CreateTriangle4 : MonoBehaviour
                 }*/
             }
 
-            
+
             for (int i = 0; i < _halfedges.Count; i++)  // ハーフエッジごとの処理
             {
                 HalfEdge HEi = _halfedges[i];
@@ -578,7 +580,8 @@ public class CreateTriangle4 : MonoBehaviour
                                     if (Parent.NVS[j].Status > 3)
                                         Parent.NVS[j].Rust += 100f;
                                 }
-                            } else
+                            }
+                            else
                             {
                                 LowestV.Rust += 100f;
                                 for (int j = 0; j < LowestV.NVS.Count; j++)
@@ -588,14 +591,14 @@ public class CreateTriangle4 : MonoBehaviour
                                 }
                             }
                         }
-                    }
+                    }                                                           // 頂点移動処理（分離後移動方式に変更したため無効化 2020/12/05）
                     else if (!HEi.Next.Connected)                                                 // 2本の稜線が断裂： nextが断裂してない
                     {
-                        HEi.Prev.Vert.Pos += HEi.Prev.Vert.Nor * 0.1f;
+                        // HEi.Prev.Vert.Pos += HEi.Prev.Vert.Nor * 0.1f;
                     }
                     else if (!HEi.Prev.Connected)                                // 2本の稜線が断裂： next next が断裂してない
                     {
-                        HEi.Next.Vert.Pos += HEi.Next.Vert.Nor * 0.1f;
+                        // HEi.Next.Vert.Pos += HEi.Next.Vert.Nor * 0.1f;
                     }
 
                     if (!HEp.Next.Connected && !HEp.Prev.Connected)
@@ -767,7 +770,7 @@ public class CreateTriangle4 : MonoBehaviour
                 _colors[i] = new Color(132.0f / 255.0f, 51.0f / 255.0f, 0.0f, 1.0f) + new Color(123.0f / 255.0f, 204.0f / 255.0f, 1.0f, 0.0f) * Mathf.Exp(-(_vertices[i].Rust > 10.0f ? _vertices[i].Rust - 10.0f : 0.0f) / 100.0f);
                 // 塵
                 _colors[i] = _colors[i] * (0.0f + 1.0f * Mathf.Exp(-(_vertices[i].Dust) / 100.0f));
-                
+
                 // _colors[i] = _vertices[i].Col;
                 //_colors[i] = Color.white;
             }
@@ -855,7 +858,7 @@ public class CreateTriangle4 : MonoBehaviour
             ;
         else
             Graphics.DrawMesh(_mesh, Vector3.zero, Quaternion.identity, _material, 0);
-            
+
         Graphics.DrawMesh(_Bmesh, Vector3.zero, Quaternion.identity, _basemat, 0);
     }
 }
