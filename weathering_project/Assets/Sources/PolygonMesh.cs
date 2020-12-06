@@ -46,8 +46,8 @@ public class Vertex
         liftingForce = 0.0f;
         bond = Noise.FBM(p * 0.01f) * 30 + 70;  // 標準 +40   // 正方格子 +60  //  teapot 80 // teapo4  
         peelScale = 0;
-        status = 0;                             // 0: 初期状態,  1: 分離，　2: ひびの端点, 3: ひびの中継点
-                                                // 4: サブ，中継点,  5: サブ，コーナー
+        status = 0;                             // 0: 初期状態,  1: 分離，　2: ひびの端点, 3: ひびの中継点，4: それ以上
+                                                // 5: サブ，中継点,  6: サブ，コーナー
     }
     public Vertex(Vertex Ver)
     {

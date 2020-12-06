@@ -32,8 +32,8 @@ public class CreateTriangle4 : MonoBehaviour
     private float _speed = 0.15f;
     private float _Aspeed = 1f;
     private float _Pspeed = 1f;
-    private float _Rspeed = 0f;
-    private float _Dspeed = 0f;
+    private float _Rspeed = 2f;
+    private float _Dspeed = 0.5f;
     private bool _simulating = true;
     private Vector3 _gravity = new Vector3(0.0f, -1.0f, 0.0f);
     private float _peelangle = Mathf.PI * 2;
@@ -344,7 +344,7 @@ public class CreateTriangle4 : MonoBehaviour
                 sw2.Stop();  // Dust 時間計測 end
 
 
-                if (_vertices[i].Status > 3) continue;                                                 // 子頂点は除く
+                if (_vertices[i].Status > 4) continue;                                                 // 子頂点は除く
 
                 sw3.Start(); // Separate 時間計測 start
                 Vertex Vi = _vertices[i];
@@ -373,8 +373,8 @@ public class CreateTriangle4 : MonoBehaviour
 
                 sw3.Stop(); // separate 時間計測 end
 
-                if (!firstloop && _vertices[i].Status > 0)
-                    _Bcolors[i].r += (1.0f - _Bcolors[i].r) * 0.2f * _speed * slider;                              // 基板の錆 2020/05/09
+                //if (!firstloop && _vertices[i].Status > 0)
+                //    _Bcolors[i].r += (1.0f - _Bcolors[i].r) * 0.2f * _speed * slider;                              // 基板の錆 2020/05/09
 
                 sw4.Start(); // rust 時間計測 start
                 if (Vi.Rust >= 10.0f)                                                                    // Rust拡散　探索をもっと容易にする余地あり
@@ -391,7 +391,7 @@ public class CreateTriangle4 : MonoBehaviour
                     HalfEdge tmpHE = Vi.HE;
                     for (int j = 0; j < Vi.NVS.Count; j++)
                     {
-                        if (Vi.NVS[j].Status > 3) continue; // 子頂点なら伝搬しない
+                        if (Vi.NVS[j].Status > 4) continue; // 子頂点なら伝搬しない
                         dotproduct = Vector3.Dot(Vector3.Normalize(Vi.NVS[j].Pos - Vi.Pos), projectedgrav);
                         if (dotproduct > thre)
                         {
@@ -534,16 +534,169 @@ public class CreateTriangle4 : MonoBehaviour
                     if (HEpP.HE.Prev.Pair != null) HEpP.HE.Prev.Pair.Face.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value);
                     if (HEpP.HE.Pair != null) HEpP.HE.Pair.Face.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value); // ContractionForce += -;
 
-                    if (HEi.Vert.Status < 3) HEi.Vert.Status++;
-                    if (HEp.Vert.Status < 3) HEp.Vert.Status++;
+                    if (HEi.Vert.Status < 4) HEi.Vert.Status++;
+                    if (HEp.Vert.Status < 4) HEp.Vert.Status++;
 
-                    _vertices.Add(new Vertex(HEi.Vert)); _vertices[_vertices.Count - 1].Status = 4;     // 頂点を4個追加
+                    if (HEi.Vert.Status > 3) // Vertから見てこれが二本目以上の断裂 → 頂点を分裂させて移動
+                    {
+                        // 頂点を一つ追加，子頂点のNVSは親のみにする
+                        _vertices.Add(new Vertex(HEi.Vert)); //_vertices[_vertices.Count - 1].Status = 5;     // 頂点を1個追加
+                        _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEi.Vert);       // 子頂点のNVSは親のみにする
+
+                        // 新しい頂点に繋げるべき稜線を探す
+                        HalfEdge tmpHE = HEi;
+                        Vector3 Rdelta = new Vector3(0, 0, 0);
+                        Vector3 Ldelta = new Vector3(0, 0, 0);
+                        List<HalfEdge> RightGroup = new List<HalfEdge>();
+                        List<HalfEdge> LeftGroup = new List<HalfEdge>();
+
+                        // HEi.Vertの周り
+                        // 反時計回り探索 断裂した稜線も含む
+                        tmpHE = HEi;
+
+                        do
+                        {
+                            if (tmpHE.Pair == null) // 塗膜の縁の場合はこれ以上探さないし，縁に面する稜線は動かさない
+                            {
+                                Rdelta *= 0f;
+                                RightGroup.Clear();
+                                break;
+                            }
+                            Rdelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
+                            RightGroup.Add(tmpHE);
+
+                            tmpHE = tmpHE.Pair.Next;
+                        } while (tmpHE.Connected);
+
+                        //Debug.Log("debug: " + debug);
+
+                        // 時計回り探索 断裂した稜線は含まない
+                        tmpHE = HEi.Prev;
+
+                        while (tmpHE.Connected)
+                        {
+
+                            if (tmpHE.Pair == null) // 塗膜の縁の場合はこれ以上探さないし，縁に面する稜線は動かさない
+                            {
+                                Ldelta *= 0f;
+                                LeftGroup.Clear();
+                                break;
+                            }
+
+                            tmpHE = tmpHE.Pair;
+                            Ldelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
+                            LeftGroup.Add(tmpHE);
+
+                            tmpHE = tmpHE.Prev;
+                        }
+
+                        //Debug.Log("Left: " + LeftGroup.Count + ", Right:" + RightGroup.Count);
+
+                        if (RightGroup.Count == 0)
+                        {
+                            foreach (HalfEdge HEL in LeftGroup)
+                            {
+                                HEL.Vert = _vertices[_vertices.Count - 1];
+                            }
+                            _vertices[_vertices.Count - 1].Pos += Ldelta.normalized * 0.02f;
+                        }
+                        else {
+                            foreach (HalfEdge HER in RightGroup)
+                            {
+                                HER.Vert = _vertices[_vertices.Count - 1];
+                            }
+                            _vertices[_vertices.Count - 1].Pos += Rdelta.normalized * 0.02f;
+                            HEp.Vert.Pos += Ldelta.normalized * 0.02f;
+                        }
+
+                    }
+
+                    if (HEp.Vert.Status > 3) // pairに関してもおんなじことをやる
+                    {
+                        // 頂点を一つ追加，子頂点のNVSは親のみにする
+                        _vertices.Add(new Vertex(HEp.Vert)); //_vertices[_vertices.Count - 1].Status = 5;     // 頂点を1個追加
+                        _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEp.Vert);       // 子頂点のNVSは親のみにする
+
+                        // 新しい頂点に繋げるべき稜線を探す
+                        HalfEdge tmpHE = HEp;
+                        Vector3 Rdelta = new Vector3(0, 0, 0);
+                        Vector3 Ldelta = new Vector3(0, 0, 0);
+                        List<HalfEdge> RightGroup = new List<HalfEdge>();
+                        List<HalfEdge> LeftGroup = new List<HalfEdge>();
+
+                        // HEp.Vertの周り
+                        // 反時計回り探索 断裂した稜線も含む
+                        tmpHE = HEp;
+
+                        do
+                        {
+                            if (tmpHE.Pair == null) // 塗膜の縁の場合はこれ以上探さないし，縁に面する稜線は動かさない
+                            {
+                                Rdelta *= 0f;
+                                RightGroup.Clear();
+                                break;
+                            }
+
+                            Rdelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
+                            RightGroup.Add(tmpHE);
+
+                            tmpHE = tmpHE.Pair.Next;
+                        } while (tmpHE.Connected);
+
+                        //Debug.Log("debug: " + debug);
+
+                        // 時計回り探索 断裂した稜線は含まない
+                        tmpHE = HEp.Prev;
+
+                        while (tmpHE.Connected)
+                        {
+
+                            if (tmpHE.Pair == null) // 塗膜の縁の場合はこれ以上探さないし，縁に面する稜線は動かさない
+                            {
+                                Ldelta *= 0f;
+                                LeftGroup.Clear();
+                                break;
+                            }
+
+                            tmpHE = tmpHE.Pair;
+                            Ldelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
+                            LeftGroup.Add(tmpHE);
+
+                            tmpHE = tmpHE.Prev;
+                        }
+
+                        //Debug.Log("Left: " + LeftGroup.Count + ", Right:" + RightGroup.Count);
+
+                        if (RightGroup.Count == 0)
+                        {
+                            foreach (HalfEdge HEL in LeftGroup)
+                            {
+                                HEL.Vert = _vertices[_vertices.Count - 1];
+                            }
+                            _vertices[_vertices.Count - 1].Pos += Ldelta.normalized * 0.02f;
+                        }
+                        else
+                        {
+                            foreach (HalfEdge HER in RightGroup)
+                            {
+                                HER.Vert = _vertices[_vertices.Count - 1];
+                            }
+                            _vertices[_vertices.Count - 1].Pos += Rdelta.normalized * 0.02f;
+                            HEp.Vert.Pos += Ldelta.normalized * 0.02f;
+                        }
+
+                    }
+
+                    //HEi.Vert.Pos += Vector3.Normalize(HEi.Prev.Vert.Pos - HEi.Vert.Pos) * 0.02f;
+                    
+                    /*
+                    _vertices.Add(new Vertex(HEi.Vert)); _vertices[_vertices.Count - 1].Status = 5;     // 頂点を4個追加
                     _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEi.Vert);       // 子頂点のNVSは親のみにする      
-                    _vertices.Add(new Vertex(HEi.Vert)); _vertices[_vertices.Count - 1].Status = 4;
+                    _vertices.Add(new Vertex(HEi.Vert)); _vertices[_vertices.Count - 1].Status = 5;
                     _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEi.Vert);
-                    _vertices.Add(new Vertex(HEp.Vert)); _vertices[_vertices.Count - 1].Status = 4;
+                    _vertices.Add(new Vertex(HEp.Vert)); _vertices[_vertices.Count - 1].Status = 5;
                     _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEp.Vert);
-                    _vertices.Add(new Vertex(HEp.Vert)); _vertices[_vertices.Count - 1].Status = 4;
+                    _vertices.Add(new Vertex(HEp.Vert)); _vertices[_vertices.Count - 1].Status = 5;
                     _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEp.Vert);
 
                     HEi.Vert = _vertices[_vertices.Count - 4];      // ひび周辺では元の頂点は参照されなくなる
@@ -553,9 +706,10 @@ public class CreateTriangle4 : MonoBehaviour
 
                     HEi.Vert.Pos += Vector3.Normalize(HEi.Prev.Vert.Pos - HEi.Vert.Pos) * 0.02f;
                     HEp.Vert.Pos += Vector3.Normalize(HEp.Prev.Vert.Pos - HEp.Vert.Pos) * 0.02f;
+                    */
 
                     // 剥離処理：　剥落判定＆頂点移動
-                    if (!HEi.Next.Connected && !HEi.Prev.Connected)  // すべての稜線が断裂 → 剥落
+                    if (!HEi.Next.Connected && !HEi.Prev.Connected && false)  // すべての稜線が断裂 → 剥落
                     {
                         if (HEiP.Peeled == false)
                         {
@@ -571,13 +725,13 @@ public class CreateTriangle4 : MonoBehaviour
                             {
                                 LowestV = HEi.Prev.Vert;
                             }
-                            if (LowestV.Status > 3)                         // 最下点が子供
+                            if (LowestV.Status > 4)                         // 最下点が子供
                             {
                                 Vertex Parent = LowestV.NVS[0];
                                 Parent.Rust += 100f;
                                 for (int j = 0; j < Parent.NVS.Count; j++)
                                 {
-                                    if (Parent.NVS[j].Status > 3)
+                                    if (Parent.NVS[j].Status > 4)
                                         Parent.NVS[j].Rust += 100f;
                                 }
                             }
@@ -586,7 +740,7 @@ public class CreateTriangle4 : MonoBehaviour
                                 LowestV.Rust += 100f;
                                 for (int j = 0; j < LowestV.NVS.Count; j++)
                                 {
-                                    if (LowestV.NVS[j].Status > 3)
+                                    if (LowestV.NVS[j].Status > 4)
                                         LowestV.NVS[j].Rust += 100f;
                                 }
                             }
@@ -601,7 +755,7 @@ public class CreateTriangle4 : MonoBehaviour
                         // HEi.Next.Vert.Pos += HEi.Next.Vert.Nor * 0.1f;
                     }
 
-                    if (!HEp.Next.Connected && !HEp.Prev.Connected)
+                    if (!HEp.Next.Connected && !HEp.Prev.Connected && false)
                     {
 
                         if (HEpP.Peeled == false)
@@ -618,13 +772,13 @@ public class CreateTriangle4 : MonoBehaviour
                             {
                                 LowestV = HEp.Prev.Vert;
                             }
-                            if (LowestV.Status > 3)
+                            if (LowestV.Status > 4)
                             {
                                 Vertex Parent = LowestV.NVS[0];
                                 Parent.Rust += 100f;
                                 for (int j = 0; j < Parent.NVS.Count; j++)
                                 {
-                                    if (Parent.NVS[j].Status > 3)
+                                    if (Parent.NVS[j].Status > 4)
                                         Parent.NVS[j].Rust += 100f;
                                 }
                             }
@@ -633,7 +787,7 @@ public class CreateTriangle4 : MonoBehaviour
                                 LowestV.Rust += 100f;
                                 for (int j = 0; j < LowestV.NVS.Count; j++)
                                 {
-                                    if (LowestV.NVS[j].Status > 3)
+                                    if (LowestV.NVS[j].Status > 4)
                                         LowestV.NVS[j].Rust += 100f;
                                 }
                             }
@@ -642,11 +796,11 @@ public class CreateTriangle4 : MonoBehaviour
                     }
                     else if (!HEp.Next.Connected)
                     {
-                        HEp.Prev.Vert.Pos += HEp.Prev.Vert.Nor * 0.02f;
+                        //HEp.Prev.Vert.Pos += HEp.Prev.Vert.Nor * 0.02f;
                     }
                     else if (!HEp.Prev.Connected)
                     {
-                        HEp.Next.Vert.Pos += HEp.Next.Vert.Nor * 0.02f;
+                        //HEp.Next.Vert.Pos += HEp.Next.Vert.Nor * 0.02f;
                     }
 
                     HEiP.ReloadNormal();
