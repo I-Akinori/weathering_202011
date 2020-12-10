@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class CreateTriangle4 : MonoBehaviour
 {
+    private GameObject obj; // デバッグ用のポインタ
+
     private Transform _camTransform;
     private float timeOut = 0.1f;
     private int count = 0;
@@ -32,8 +34,8 @@ public class CreateTriangle4 : MonoBehaviour
     private float _speed = 0.15f;
     private float _Aspeed = 1f;
     private float _Pspeed = 1f;
-    private float _Rspeed = 0f;
-    private float _Dspeed = 0f;
+    private float _Rspeed = 2f;
+    private float _Dspeed = 0.3f;
     private bool _simulating = true;
     private Vector3 _gravity = new Vector3(0.0f, -1.0f, 0.0f);
     private float _peelangle = Mathf.PI * 2;
@@ -105,6 +107,8 @@ public class CreateTriangle4 : MonoBehaviour
     // ##############################################################################################################################################################
     private void Awake()
     {
+        obj = (GameObject)Resources.Load("Point");
+
         sw0.Start();
         _camTransform = GameObject.Find("Main Camera").transform;
         // 各リストの初期化
@@ -377,7 +381,7 @@ public class CreateTriangle4 : MonoBehaviour
                     _Bcolors[i].r += (1.0f - _Bcolors[i].r) * 0.2f * _speed * slider;                              // 基板の錆 2020/05/09
 
                 sw4.Start(); // rust 時間計測 start
-                if (Vi.Rust >= 10.0f)                                                                    // Rust拡散　探索をもっと容易にする余地あり
+                if (Vi.Rust >= 10.0f && Vi.NVS.Count > 0)                                                                    // Rust拡散　探索をもっと容易にする余地あり
                 {
                     Vi.Rust = Vi.Rust > 100f ? Vi.Rust : Vi.Rust + 0.03f * 15.0f * _Rspeed * _speed * slider;
 
@@ -509,12 +513,22 @@ public class CreateTriangle4 : MonoBehaviour
                 float HEpPCF = HEpP.ContractionForce;
                 float HEiBF = HEi.BindingForce;
 
+                if (HEi.Next.Vert != HEp.Vert && HEi != HEp && HEi.Connected) {
+                    // プレハブを元にオブジェクトを生成する
+                     Instantiate(obj, HEi.Vert.Pos, Quaternion.identity);
+                     Instantiate(obj, HEi.Next.Vert.Pos, Quaternion.identity);
+                     Instantiate(obj, HEi.Pair.Vert.Pos, Quaternion.identity);
+                    Debug.Log("HEi.Vert: (" + HEi.Vert.Pos.x + ", " + HEi.Vert.Pos.y + ", " + +HEi.Vert.Pos.z + ")");
+                    Debug.Log("HEi.Next.Vert: (" + HEi.Next.Vert.Pos.x + ", " + HEi.Next.Vert.Pos.y + ", " + +HEi.Next.Vert.Pos.z + ")");
+                    Debug.Log("HEi.Pair.Vert: (" + HEi.Pair.Vert.Pos.x + ", " + HEi.Pair.Vert.Pos.y + ", " + +HEi.Pair.Vert.Pos.z + ")");
+                }
+
                 if ((HEiP.ContractionForce + HEpP.ContractionForce > HEi.BindingForce * 5f                                 // 張力と接合力の比較
                         || (HEiP.ContractionForce + HEpP.ContractionForce > HEi.BindingForce * 0.1f                      // 割れやすい
                             && ((HEi.Vert.Status == 2 && Vector3.Dot(HEi.Vert.Direction, Vector3.Normalize(HEi.Next.Vert.Pos - HEi.Vert.Pos)) > 0.5f)
                                 || HEi.Next.Vert.Status == 2 && Vector3.Dot(HEi.Next.Vert.Direction, Vector3.Normalize(HEi.Vert.Pos - HEi.Next.Vert.Pos)) > 0.5f))
                     )                                                                                         // ↑ エッジの端点がひびの端点だったら
-                    && HEi.Vert.Status > 0 && HEi.Next.Vert.Status > 0 && HEi.Connected)                 // 亀裂の処理 1回のみ
+                    && HEi.Vert.Status > 0 && HEi.Next.Vert.Status > 0 && HEi != HEp && HEi.Connected)                 // 亀裂の処理 1回のみ
                 {
                     if (HEi.Vert.Status == 1) HEi.Vert.Direction = Vector3.Normalize(HEi.Vert.Pos - HEi.Next.Vert.Pos);
                     if (HEi.Next.Vert.Status == 1) HEi.Vert.Direction = Vector3.Normalize(HEi.Next.Vert.Pos - HEi.Vert.Pos);
@@ -522,7 +536,7 @@ public class CreateTriangle4 : MonoBehaviour
                     HEi.Connected = false;
                     HEp.Connected = false;
 
-                    float rp = -10.0f;
+                    float rp = -15.0f;
                     //int rp = 4;
                     HEiP.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value);                                                                   // 張力緩和
                     if (HEiP.HE.Next.Pair != null) HEiP.HE.Next.Pair.Face.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value);
@@ -537,7 +551,7 @@ public class CreateTriangle4 : MonoBehaviour
                     if (HEi.Vert.Status < 4) HEi.Vert.Status++;
                     if (HEp.Vert.Status < 4) HEp.Vert.Status++;
 
-                    if (HEi.Vert.Status > 3) // Vertから見てこれが二本目以上の断裂 → 頂点を分裂させて移動
+                    if (HEi.Vert.Status > 2) // Vertから見てこれが二本目以上の断裂 → 頂点を分裂させて移動
                     {
                         // 頂点を一つ追加，子頂点のNVSは親のみにする
                         _vertices.Add(new Vertex(HEi.Vert)); //_vertices[_vertices.Count - 1].Status = 5;     // 頂点を1個追加
@@ -550,7 +564,7 @@ public class CreateTriangle4 : MonoBehaviour
                         Vector3 Ldelta = new Vector3(0, 0, 0);
                         List<HalfEdge> RightGroup = new List<HalfEdge>();
                         List<HalfEdge> LeftGroup = new List<HalfEdge>();
-
+                        
                         // HEi.Vertの周り
                         // 反時計回り探索 断裂した稜線も含む
                         tmpHE = HEi;
@@ -564,11 +578,12 @@ public class CreateTriangle4 : MonoBehaviour
                                 break;
                             }
                             Rdelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
-                            RightGroup.Add(tmpHE);
+                            if (tmpHE != HEi) RightGroup.Add(tmpHE);
 
                             tmpHE = tmpHE.Pair.Next;
                         } while (tmpHE.Connected);
                         tearedHER = tmpHE; // 反時計回り探索の最終地点を記録
+                        if (tearedHER.Pair != null) RightGroup.Add(tearedHER);
 
                         //Debug.Log("debug: " + debug);
 
@@ -599,11 +614,17 @@ public class CreateTriangle4 : MonoBehaviour
 
                         if (RightGroup.Count == 0)
                         {
+                            
                             foreach (HalfEdge HEL in LeftGroup)
                             {
                                 HEL.Vert = _vertices[_vertices.Count - 1];
                                 if (HEL.Pair != null)_vertices[_vertices.Count - 1].NVS.Add(HEL.Pair.Vert); // HEi.Pair.Vertを含む
                                 if (HEL != HEi && HEL.Pair != null) HEi.Vert.NVS.Remove(HEL.Pair.Vert);    // 元の頂点のNVSからHEi.Pair.Vertは除かなくてよい
+                                if (HEL.Connected && HEL.Next.Vert != HEL.Pair.Vert)
+                                {
+                                    Debug.Log("ErrorIL Status: " + HEL.Next.Vert.Status + " & " + HEL.Pair.Vert.Status);
+                                    Debug.Log("ErrorIL Posision: " + HEL.Next.Vert.Pos + " & " + HEL.Pair.Vert.Pos);
+                                }
                             }
 
                             _vertices[_vertices.Count - 1].NVS.Add(tmpHE.Vert); // これだけは独立で追加
@@ -611,25 +632,31 @@ public class CreateTriangle4 : MonoBehaviour
                             _vertices[_vertices.Count - 1].Pos += Ldelta.normalized * 0.02f;
                         }
                         else {
+                            
                             foreach (HalfEdge HER in RightGroup)
                             {
                                 HER.Vert = _vertices[_vertices.Count - 1];
                                 if (HER.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(HER.Pair.Vert);  // tearedHER.Pair.Vertを含む
                                 if (HER != tearedHER && HER.Pair != null) HEi.Vert.NVS.Remove(HER.Pair.Vert);    // 元の頂点のNVSからtearedHER.Pair.Vertは除かなくてよい
+                                if (HER.Connected && HER.Next.Vert != HER.Pair.Vert)
+                                {
+                                    Debug.Log("ErrorIR Status: " + HER.Next.Vert.Status + " & " + HER.Pair.Vert.Status);
+                                    Debug.Log("ErrorIR Posision: " + HER.Next.Vert.Pos + " & " + HER.Pair.Vert.Pos);
+                                }
                             }
+
                             if (HEi.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(HEi.Pair.Vert); // これだけは独立で追加
 
                             _vertices[_vertices.Count - 1].Pos += Rdelta.normalized * 0.02f;
                             HEi.Vert.Pos += Ldelta.normalized * 0.02f;
                         }
-
                     }
 
-                    if (HEp.Vert.Status > 3) // pairに関してもおんなじことをやる
+                    if (HEp.Vert.Status > 2) // HEpに対しても同じことをする
                     {
                         // 頂点を一つ追加，子頂点のNVSは親のみにする
                         _vertices.Add(new Vertex(HEp.Vert)); //_vertices[_vertices.Count - 1].Status = 5;     // 頂点を1個追加
-                        _vertices[_vertices.Count - 1].NVS.Clear();// _vertices[_vertices.Count - 1].NVS.Add(HEp.Vert);       // 子頂点のNVSは親のみにする
+                        //_vertices[_vertices.Count - 1].NVS.Clear(); //_vertices[_vertices.Count - 1].NVS.Add(HEp.Vert);       // 子頂点のNVSは親のみにする
 
                         // 新しい頂点に繋げるべき稜線を探す
                         HalfEdge tmpHE = HEp;
@@ -651,22 +678,23 @@ public class CreateTriangle4 : MonoBehaviour
                                 RightGroup.Clear();
                                 break;
                             }
-
                             Rdelta += tmpHE.Next.Vert.Pos - tmpHE.Vert.Pos;
-                            RightGroup.Add(tmpHE);
+                            if (tmpHE != HEp) RightGroup.Add(tmpHE);
 
                             tmpHE = tmpHE.Pair.Next;
                         } while (tmpHE.Connected);
                         tearedHER = tmpHE; // 反時計回り探索の最終地点を記録
+                        if (tearedHER.Pair != null) RightGroup.Add(tearedHER);
 
                         //Debug.Log("debug: " + debug);
 
-                        // 時計回り探索 断裂した稜線は含まない
+                        // 時計回り探索 さっき断裂した半稜線は含むが，断裂していた半稜線は含まない
                         LeftGroup.Add(HEp);
                         tmpHE = HEp.Prev;
 
                         while (tmpHE.Connected)
                         {
+
                             if (tmpHE.Pair == null) // 塗膜の縁の場合はこれ以上探さないし，縁に面する稜線は動かさない
                             {
                                 Ldelta *= 0f;
@@ -680,40 +708,54 @@ public class CreateTriangle4 : MonoBehaviour
 
                             tmpHE = tmpHE.Prev;
                         }
+                        // tmpHEには断裂した半稜線（VertがHEp.Vertでないもの）が記録されている
+                        // tmpHE.VertとHEp.Pair.Vertは無条件で両方のNVSになる
 
                         //Debug.Log("Left: " + LeftGroup.Count + ", Right:" + RightGroup.Count);
 
                         if (RightGroup.Count == 0)
                         {
+
                             foreach (HalfEdge HEL in LeftGroup)
                             {
                                 HEL.Vert = _vertices[_vertices.Count - 1];
                                 if (HEL.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(HEL.Pair.Vert); // HEp.Pair.Vertを含む
                                 if (HEL != HEp && HEL.Pair != null) HEp.Vert.NVS.Remove(HEL.Pair.Vert);    // 元の頂点のNVSからHEp.Pair.Vertは除かなくてよい
+                                if (HEL.Connected && HEL.Next.Vert != HEL.Pair.Vert)
+                                {
+                                    Debug.Log("ErrorIL Status: " + HEL.Next.Vert.Status + " & " + HEL.Pair.Vert.Status);
+                                    Debug.Log("ErrorIL Posision: " + HEL.Next.Vert.Pos + " & " + HEL.Pair.Vert.Pos);
+                                }
                             }
 
-                            if (HEp.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(tmpHE.Vert); // これだけは独立で追加
+                            _vertices[_vertices.Count - 1].NVS.Add(tmpHE.Vert); // これだけは独立で追加
 
                             _vertices[_vertices.Count - 1].Pos += Ldelta.normalized * 0.02f;
                         }
                         else
                         {
+
                             foreach (HalfEdge HER in RightGroup)
                             {
                                 HER.Vert = _vertices[_vertices.Count - 1];
                                 if (HER.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(HER.Pair.Vert);  // tearedHER.Pair.Vertを含む
                                 if (HER != tearedHER && HER.Pair != null) HEp.Vert.NVS.Remove(HER.Pair.Vert);    // 元の頂点のNVSからtearedHER.Pair.Vertは除かなくてよい
+                                if (HER.Connected && HER.Next.Vert != HER.Pair.Vert)
+                                {
+                                    Debug.Log("ErrorIR Status: " + HER.Next.Vert.Status + " & " + HER.Pair.Vert.Status);
+                                    Debug.Log("ErrorIR Posision: " + HER.Next.Vert.Pos + " & " + HER.Pair.Vert.Pos);
+                                }
                             }
-                            _vertices[_vertices.Count - 1].NVS.Add(HEp.Pair.Vert); // これだけは独立で追加
+
+                            if (HEp.Pair != null) _vertices[_vertices.Count - 1].NVS.Add(HEp.Pair.Vert); // これだけは独立で追加
 
                             _vertices[_vertices.Count - 1].Pos += Rdelta.normalized * 0.02f;
                             HEp.Vert.Pos += Ldelta.normalized * 0.02f;
                         }
-
                     }
 
                     //HEi.Vert.Pos += Vector3.Normalize(HEi.Prev.Vert.Pos - HEi.Vert.Pos) * 0.02f;
-                    
+
                     /*
                     _vertices.Add(new Vertex(HEi.Vert)); _vertices[_vertices.Count - 1].Status = 5;     // 頂点を4個追加
                     _vertices[_vertices.Count - 1].NVS.Clear(); _vertices[_vertices.Count - 1].NVS.Add(HEi.Vert);       // 子頂点のNVSは親のみにする      
