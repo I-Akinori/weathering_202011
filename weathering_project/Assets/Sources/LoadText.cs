@@ -43,7 +43,7 @@ public class LoadText : MonoBehaviour
     {
         CreateTriangle4.sw0.Start();
         TextAsset textasset = new TextAsset(); //テキストファイルのデータを取得するインスタンスを作成
-        textasset = Resources.Load("Curve2", typeof(TextAsset)) as TextAsset; //Resourcesフォルダから対象テキストを取得
+        textasset = Resources.Load("Plane", typeof(TextAsset)) as TextAsset; //Resourcesフォルダから対象テキストを取得
         //textasset = Resources.Load("teapot4", typeof(TextAsset)) as TextAsset;
         
         string TextLines = textasset.text; //テキスト全体をstring型で入れる変数を用意して入れる

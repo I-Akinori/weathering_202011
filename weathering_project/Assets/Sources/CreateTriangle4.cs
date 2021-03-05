@@ -183,7 +183,7 @@ public class CreateTriangle4 : MonoBehaviour
                 HEi.Curvature = (convex ? Mathf.PI + Mathf.Acos(d) : Mathf.PI - Mathf.Acos(d)) - _peelangle;
                 HEi.LiftingForce = 0.12f * HEi.Face.ContractionForce * Dist2BetweenPointAndLine(HEi.Prev.Vert.Pos, HEi.Vert.Pos, HEi.Next.Vert.Pos)
                 //    * (convex ? 10 : 0);
-                * HEi.Curvature;
+                * HEi.Curvature + 0.05f * (HEi.Vert.Status > 0 ? HEi.Vert.LiftingForce : 0f) + 0.05f * (HEi.Pair.Vert.Status > 0 ? HEi.Pair.Vert.LiftingForce : 0f);
 
             }
         }
@@ -315,7 +315,9 @@ public class CreateTriangle4 : MonoBehaviour
                     float d = Mathf.Clamp(rad, -1.0f, 1.0f);
                     HEi.Curvature = (convex ? Mathf.PI + Mathf.Acos(d) : Mathf.PI - Mathf.Acos(d)) - _peelangle;
                     HEi.LiftingForce = 0.12f * HEi.Face.ContractionForce * Dist2BetweenPointAndLine(HEi.Prev.Vert.Pos, HEi.Vert.Pos, HEi.Next.Vert.Pos)
-                    * HEi.Curvature;
+                    //    * (convex ? 10 : 0);
+                    * HEi.Curvature + 0.1f * (HEi.Vert.Status > 0 ? HEi.Vert.LiftingForce : 0f) + 0.1f * (HEi.Pair.Vert.Status > 0 ? HEi.Pair.Vert.LiftingForce : 0f);
+
                 }
             }
 
@@ -329,8 +331,11 @@ public class CreateTriangle4 : MonoBehaviour
                 _vertices[i].LiftingForce = 0.0f;
             for (int i = 0; i < _halfedges.Count; i++)
             {
-                if (!_halfedges[i].Face.Peeled)
-                    _halfedges[i].Prev.Vert.LiftingForce += _halfedges[i].LiftingForce;
+                if (!_halfedges[i].Face.Peeled) {
+                    _halfedges[i].Prev.Vert.LiftingForce += _halfedges[i].LiftingForce; 
+                    _halfedges[i].Next.Vert.LiftingForce -= 0.5f * _halfedges[i].LiftingForce; // 揚力の反作用 (2020/12/10)
+                    _halfedges[i].Vert.LiftingForce -= 0.5f * _halfedges[i].LiftingForce;
+                }
             }
             sw3.Stop();
 
@@ -358,9 +363,8 @@ public class CreateTriangle4 : MonoBehaviour
 
                     if (Vi.Bond < Vi.LiftingForce)                                                  // 分離処理
                     {
-                        Vi.Pos += Vi.Nor * 0.1f;                                                    // 頂点移動処理 2020/12/05
                         //Debug.Log("Separated!");
-                        Vi.PeelScale++;
+                        Vi.PeelScale++;                                                             // PeelScale 廃止　（2020/12/10）
                         Vi.Status = 1;
 
                         for (int j = 0; j < _halfedges.Count; j++)                                  // 剥離規模パラメタの更新
@@ -373,6 +377,7 @@ public class CreateTriangle4 : MonoBehaviour
                 }
                 else
                 {
+                    Vi.Pos += Vi.Nor * 0.0005f * Vi.LiftingForce * _speed * slider;                                                    // 頂点移動処理 2020/12/05
                 }
 
                 sw3.Stop(); // separate 時間計測 end
@@ -536,7 +541,7 @@ public class CreateTriangle4 : MonoBehaviour
                     HEi.Connected = false;
                     HEp.Connected = false;
 
-                    float rp = -15.0f;
+                    float rp = -50.0f;
                     //int rp = 4;
                     HEiP.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value);                                                                   // 張力緩和
                     if (HEiP.HE.Next.Pair != null) HEiP.HE.Next.Pair.Face.ContractionForce += rp * (0.7f + 0.3f * UnityEngine.Random.value);
